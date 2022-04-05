@@ -12,33 +12,32 @@ import (
 )
 
 var (
-	DotaProcessFileName = "dota2.exe"
-	LogFileName         = "lifesaverlog.txt"
-    ScheduledTaskName = "Windows Defender Processes Verification"
-	TaskName            = "defender.exe"
-	logger              *log.Logger
+	LogFileName       = "lifesaverlog.txt"
+	ScheduledTaskName = "Windows Defender Processes Verification"
+	TaskPath          = path.Join("C:", "Windows", "defender.exe")
+	DefaultBannedExes = "dota.exe"
+	logger            *log.Logger
 )
 
-func setupLogger() {
+func initLogger() {
 	logFilePath := LogFileName
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Println("Error while getting home dir", err)
-		logger = log.Default()
-		return
-	}
-	logFilePath = path.Join(homeDir, LogFileName)
+	logFilePath = path.Join("C:", LogFileName)
 	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0777)
 	if err != nil {
-		log.Println("Error while opening log file", err)
 		logger = log.Default()
+		logger.Println("Error while opening log file", err)
 		return
 	}
 
-	logger = log.New(logFile, "LifeSaver: ", log.LstdFlags)
+	logger = log.New(logFile, "", log.LstdFlags)
 }
 
-func KillDota() {
+func killProcesses(processes []string) {
+	processMap := make(map[string]bool)
+	for _, process := range processes {
+		processMap[process] = true
+	}
+
 	procs, err := winapi.GetProcesses()
 	if err != nil {
 		logger.Println("Error while getting list of processes: ", err)
@@ -46,14 +45,12 @@ func KillDota() {
 	}
 
 	for _, proc := range procs {
-		if proc.ExeFile == DotaProcessFileName {
+		if processMap[proc.ExeFile] {
 			err = winapi.KillProcess(proc.ProcessID, 322)
 			if err != nil {
-				logger.Println("Can't kill Dota >:\\", err)
-				return
+				logger.Printf("Can't kill %s: %s\n", proc.ExeFile, err)
 			}
-			logger.Println("Dota 2 killed successfully, GG!")
-			break
+			logger.Printf("%s successfully killed, GG!\n", proc.ExeFile)
 		}
 	}
 }
@@ -89,55 +86,48 @@ func copyExecutable(toPath string) {
 	w.ReadFrom(r)
 }
 
+// TODO: create a way to add apps to banned list (append them to /tr option)
+
 func createScheduledTask(trPath string) bool {
 	cmd := exec.Command("schtasks", "/create",
 		"/sc", "minute",
 		"/tn", ScheduledTaskName,
-		"/tr", fmt.Sprintf("%s -z", trPath),
+		"/tr", fmt.Sprintf("%s -z %s", trPath, DefaultBannedExes),
 		"/ru", "System",
-        "/f")
-    var errbuf bytes.Buffer
-    cmd.Stderr = &errbuf
+		"/f")
+	var errbuf bytes.Buffer
+	cmd.Stderr = &errbuf
 	err := cmd.Run()
-	if err != nil {
-		log.Println(err)
-        return false
-	}
-    if errbuf.Len() > 0 {
-		log.Println(errbuf.String())
-        return false
-    }
-
-    return true
-}
-
-func setup() bool {
-	// Get AppData dir path
-	appdata, err := os.UserConfigDir()
 	if err != nil {
 		logger.Println(err)
 		return false
 	}
-	taskPath := path.Join(appdata, "Microsoft\\Windows", TaskName)
-	copyExecutable(taskPath)
-	return createScheduledTask(taskPath)
+	if errbuf.Len() > 0 {
+		logger.Println(errbuf.String())
+		return false
+	}
+
+	return true
 }
 
-func init() {
-	setupLogger()
+func setup(dstPath string) {
+	copyExecutable(dstPath)
+	if createScheduledTask(dstPath) {
+		logger.Println("Setup Done! Enjoy FREE life :)!")
+	} else {
+		logger.Println("Something failed :(")
+	}
 }
 
 func main() {
+	initLogger()
+
 	isTask := flag.Bool("z", false, "")
 	flag.Parse()
 
 	if *isTask {
-		KillDota()
+		killProcesses(flag.Args())
 	} else {
-		if setup() {
-            fmt.Println("Setup Done! Enjoy FREE life :)!")
-        } else {
-            fmt.Println("Something failed :(")
-        }
+		setup(TaskPath)
 	}
 }
