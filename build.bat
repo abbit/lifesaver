@@ -1,0 +1,1 @@
+go build -o build/lifesaver.exe -ldflags -H=windowsgui lifesaver.go
