@@ -15,7 +15,7 @@ var (
 	LogFileName       = "lifesaverlog.txt"
 	ScheduledTaskName = "Windows Defender Processes Verification"
 	TaskPath          = path.Join("C:", "Windows", "defender.exe")
-	DefaultBannedExes = "dota2.exe osu!.exe"
+	DefaultBannedExes = "dota2.exe"
 	logger            *log.Logger
 )
 
