@@ -70,19 +70,19 @@ func copyExecutable(toPath string) {
 
 	// Read this executable
 	r, err := os.Open(exe)
+	defer r.Close()
 	if err != nil {
 		logger.Println(err)
 		return
 	}
-	defer r.Close()
 
 	// copy executable to dest dir
 	w, err := os.Create(toPath)
+	defer w.Close()
 	if err != nil {
 		logger.Println(err)
 		return
 	}
-	defer w.Close()
 	w.ReadFrom(r)
 }
 
